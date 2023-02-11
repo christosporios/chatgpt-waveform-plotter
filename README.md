@@ -1,4 +1,6 @@
 # MP3 Waveform Plotting Web App built with ChatGPT
+This app was built almost entirely by interacting with ChatGPT. The log is in `docs/chatgpt_log.txt`.
+
 A web app that allows users to upload an MP3 file and generate a waveform visualization of the audio. The waveform shows the low, mid, and high frequency amplitudes of the audio over time. The backend is responsible for processing the uploaded MP3 file, analyzing its audio data, and returning the results to the frontend to be visualized.
 
 ## Frontend
