@@ -1,34 +1,33 @@
 import express from "express";
+import multer from "multer";
+import path from "path";
+import { spawn } from "child_process";
+
 const app = express();
 const port = 3000;
-import * as fs from "fs";
-import * as mm from "music-metadata";
-import multer from "multer";
-
 const jobs = {};
 
-
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
+    destination: (req, file, cb) => {
         cb(null, "tmp/");
     },
-    filename: function (req, file, cb) {
+    filename: (req, file, cb) => {
         cb(null, file.fieldname + "-" + Date.now());
     }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
 
 app.use(express.static("public"));
 
 app.post("/process-mp3", upload.single("mp3"), async (req, res) => {
-    let jobId = generateJobId();
-    let mp3 = req.file;
+    const jobId = generateJobId();
+    const mp3 = req.file;
 
     jobs[jobId] = { status: "processing" };
 
     try {
-        let trackAnalysis = await processMp3(jobId, mp3.path);
+        const trackAnalysis = await processMp3(jobId, mp3.path);
         jobs[jobId].trackAnalysis = trackAnalysis;
         jobs[jobId].status = "completed";
     } catch (err) {
@@ -36,12 +35,12 @@ app.post("/process-mp3", upload.single("mp3"), async (req, res) => {
         jobs[jobId].status = "error";
     }
 
-    res.json({ jobId: jobId });
+    res.json({ jobId });
 });
 
 app.get("/check-job-status", (req, res) => {
-    let jobId = req.query.jobId;
-    let job = jobs[jobId];
+    const jobId = req.query.jobId;
+    const job = jobs[jobId];
     res.json({ status: job.status, trackAnalysis: job.trackAnalysis });
 });
 
@@ -50,18 +49,8 @@ app.listen(port, () => {
 });
 
 function generateJobId() {
-    let id = "";
-    let possible = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-    for (let i = 0; i < 8; i++) {
-        id += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-
-    return id;
+    return [...Array(8)].map(() => Math.random().toString(36)[2]).join("");
 }
-
-import { spawn } from "child_process";
-import path from "path";
 
 function processMp3(jobId, mp3Path) {
     console.log("Processing MP3 file: " + mp3Path);
@@ -76,15 +65,15 @@ function processMp3(jobId, mp3Path) {
         let data = "";
         let error = "";
 
-        pythonProcess.stdout.on("data", (chunk) => {
+        pythonProcess.stdout.on("data", chunk => {
             data += chunk.toString();
         });
 
-        pythonProcess.stderr.on("data", (chunk) => {
+        pythonProcess.stderr.on("data", chunk => {
             error += chunk.toString();
         });
 
-        pythonProcess.on("close", (code) => {
+        pythonProcess.on("close", code => {
             if (code !== 0) {
                 reject(`Child process exited with code ${code}: ${error}`);
                 return;

@@ -3,16 +3,20 @@
 <head>
     <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css"
         integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
+
+
     <style>
         #drop-area {
             height: 200px;
             border: 2px solid #ccc;
             border-radius: 5px;
-            line-height: 200px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 24px;
             background-color: #f2f2f2;
             margin: 20px 0;
+            transition: all 0.2s ease-in-out;
         }
 
         #drop-area.highlight {
@@ -31,94 +35,97 @@
             width: 800px;
             background: white;
             border: 1px solid black;
-            margin: 0 auto;
+            margin: 20px auto;
         }
     </style>
 </head>
 
 <body>
-    <div id="drop-area">Drop MP3 here</div>
-    <br />
-    <div id="status"></div>
-    <canvas id="waveform"></canvas>
-    <script>
-        let dropArea = document.getElementById("drop-area");
-        let status = document.getElementById("status");
+    <div id="drop-area">Drop MP3 here</div><br />
+    <div id="status"></div><canvas id="waveform"></canvas>
+    <script>const dropArea = document.getElementById("drop-area");
+        const status = document.getElementById("status");
+        const canvas = document.getElementById("waveform");
+        const ctx = canvas.getContext("2d");
 
         // highlight drop area on drag over
-        dropArea.addEventListener("dragover", function (event) {
+        dropArea.addEventListener("dragover", (event) => {
             event.preventDefault();
             event.stopPropagation();
             dropArea.classList.add("highlight");
         });
 
         // un-highlight drop area on drag leave
-        dropArea.addEventListener("dragleave", function (event) {
+        dropArea.addEventListener("dragleave", (event) => {
             event.preventDefault();
             event.stopPropagation();
             dropArea.classList.remove("highlight");
         });
 
         // handle file drop
-        dropArea.addEventListener("drop", function (event) {
+        dropArea.addEventListener("drop", (event) => {
             event.preventDefault();
             event.stopPropagation();
             dropArea.classList.remove("highlight");
 
-            let file = event.dataTransfer.files[0];
-            status.innerHTML = "Uploading " + file.name + "...";
+            const file = event.dataTransfer.files[0];
+            status.innerHTML = `Uploading ${file.name}...`;
 
             // send file to the server for processing
-            let formData = new FormData();
+            const formData = new FormData();
             formData.append("mp3", file);
-            let xhr = new XMLHttpRequest();
+            const xhr = new XMLHttpRequest();
             xhr.open("POST", "/process-mp3", true);
-            xhr.onreadystatechange = function () {
+
+            xhr.onreadystatechange = () => {
                 if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
-                    let response = JSON.parse(xhr.responseText);
-                    let jobId = response.jobId;
+                    const response = JSON.parse(xhr.responseText);
+                    const jobId = response.jobId;
                     updateStatus(jobId);
                 }
-            };
+            }
+
+                ;
             xhr.send(formData);
         });
 
-        function convertToMinutesSeconds(seconds) {
-            let minutes = Math.floor(seconds / 60);
-            let remainingSeconds = Math.floor(seconds % 60);
+        const convertToMinutesSeconds = (seconds) => {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
 
-            let minutesString = minutes.toString().padStart(2, "0");
-            let secondsString = remainingSeconds.toString().padStart(2, "0");
+            const minutesString = minutes.toString().padStart(2, "0");
+            const secondsString = remainingSeconds.toString().padStart(2, "0");
 
             return `${minutesString}:${secondsString}`;
         }
-        function plotWaveform(waveform) {
-            const canvas = document.getElementById("waveform");
-            const ctx = canvas.getContext("2d");
 
+            ;
+
+        const plotWaveform = (waveform) => {
             // clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // calculate scale factor
-            const maxAmplitude = Math.max(...waveform.map(wf => Math.max(wf.lows, wf.mids, wf.highs)));
+            const maxAmplitude = Math.max(...waveform.map((wf) => Math.max(wf.lows, wf.mids, wf.highs)));
             const scaleFactor = canvas.height / maxAmplitude;
 
             // draw grid
             ctx.strokeStyle = "gray";
             ctx.beginPath();
+
             for (let i = 0; i < maxAmplitude; i += 10) {
                 const y = canvas.height - i * scaleFactor;
                 ctx.moveTo(0, y);
                 ctx.lineTo(canvas.width, y);
             }
+
             ctx.stroke();
 
-            // draw waveform
-            for (let i = 0; i < waveform.length; i++) {
-                const x = i * canvas.width / waveform.length;
-                const lows = canvas.height - waveform[i].lows * scaleFactor;
-                const mids = canvas.height - waveform[i].mids * scaleFactor;
-                const highs = canvas.height - waveform[i].highs * scaleFactor;
+            waveform.forEach((wf, i) => {
+                let x = i * canvas.width / waveform.length;
+                const lows = canvas.height - wf.lows * scaleFactor;
+                const mids = canvas.height - wf.mids * scaleFactor;
+                const highs = canvas.height - wf.highs * scaleFactor;
 
                 ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
                 ctx.fillRect(x, lows, canvas.width / waveform.length, canvas.height - lows);
@@ -128,40 +135,51 @@
 
                 ctx.fillStyle = "rgba(0, 0, 255, 0.3)";
                 ctx.fillRect(x, highs, canvas.width / waveform.length, canvas.height - highs);
+            });
+        }
+
+        async function updateStatus(jobId) {
+            try {
+                const response = await fetch(`/check-job-status?jobId=${jobId}`);
+                const data = await response.json();
+
+                if (data.status === "in_queue") {
+                    status.innerHTML = "Your file is in the queue for processing.";
+                }
+
+                else if (data.status === "processing") {
+                    status.innerHTML = "Your file is being processed.";
+                }
+
+                else if (data.status === "completed") {
+                    status.innerHTML = `Your file has been processed. It is ${convertToMinutesSeconds(
+                        data.trackAnalysis.duration)
+                        }
+
+                long.`;
+                    plotWaveform(data.trackAnalysis.waveform);
+                }
+
+                else {
+                    status.innerHTML = "An error occurred while processing your file.";
+                }
+
+                if (data.status !== "completed") {
+                    setTimeout(() => {
+                        updateStatus(jobId);
+                    }
+
+                        , 5000);
+                }
+            }
+
+            catch (error) {
+                console.error(error);
             }
         }
 
 
-
-        function updateStatus(jobId) {
-            let xhr = new XMLHttpRequest();
-            xhr.open("GET", "/check-job-status?jobId=" + jobId, true);
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
-                    let response = JSON.parse(xhr.responseText);
-                    if (response.status === "in_queue") {
-                        status.innerHTML = "Your file is in the queue for processing.";
-                    } else if (response.status === "processing") {
-                        status.innerHTML = "Your file is being processed.";
-                    } else if (response.status === "completed") {
-                        status.innerHTML = "Your file has been processed. It is " +
-                            convertToMinutesSeconds(response.trackAnalysis.duration) + " long.";
-                        plotWaveform(response.trackAnalysis.waveform);
-                    } else {
-                        status.innerHTML = "An error occurred while processing your file.";
-                    }
-
-                    if (response.status !== "completed") {
-                        setTimeout(() => {
-                            updateStatus(jobId);
-                        }, 5000);
-                    }
-                }
-            };
-            xhr.send();
-        }
     </script>
-
 </body>
 
 </html>
